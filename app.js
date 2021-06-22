@@ -1,3 +1,4 @@
+require('dotenv').config('session');
 const express = require('express');
 const app = express();
 const path = require('path');
@@ -8,14 +9,16 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const flash = require('connect-flash');
 const passport = require('passport');
-const User = require('./models/user')
+const multer = require('multer')
+const {storage} = require('./cloudinary/index')
+const upload = multer({ storage })
 const localStrategy = require('passport-local').Strategy;
 const methodOverride = require('method-override')
 const {isLoggedIn,isAuthor} = require('./middleware')
+const User = require('./models/user')
 const Blog = require('./models/blog');
 const Tag = require('./models/tags');
-require('dotenv').config();
-const dbUrl = process.env.DB_URL || "mongodb://localhost:27017:yelp-camp"; ;
+const dbUrl = process.env.DB_URL || "mongodb://localhost:27017/blog-app"; ;
 const SECRET = process.env.SECRET || "thisismysecretpassword"
 const MongoDBStore = require('connect-mongo');
 
@@ -36,7 +39,7 @@ app.use(methodOverride('_method'));
 
 app.use(session({
     store:MongoDBStore.create({ mongoUrl: dbUrl }),
-    name:'session',
+    name:'sessionAuth',
     secret:SECRET,
     resave:'false', 
     touchAfter:24*60*60,
@@ -64,6 +67,11 @@ app.use((req, res, next) => {
 })
 
 
+app.get('/', (req, res) => {
+    
+
+    res.redirect('/home');
+})
 
 //home page
 app.get('/home', async (req, res)=>{
@@ -88,11 +96,15 @@ app.get('/global',async(req, res)=>{
 app.get('/blog/new',isLoggedIn,(req, res)=>{
     res.render('blog/new');
 })
-app.post('/blog/new',isLoggedIn,async (req, res)=>{
+app.post('/blog/new',isLoggedIn, upload.single('image'),async (req, res)=>{
     const {title,description,tags,body} = req.body;
     const tagsArray = tags.split(',').map(tag => tag.trim());
     const newBlog = new Blog({
         title,
+        coverImage: {
+            url:req.file.path || "",
+            filename:req.file.filename
+        },
         description,
         body,
         tagList : [...tagsArray],
@@ -107,6 +119,7 @@ app.post('/blog/new',isLoggedIn,async (req, res)=>{
     })
     req.flash('success','New blog post added');
     res.redirect('/home')
+    res.send(req.file);
 })
 
 // delete blog
@@ -189,9 +202,11 @@ app.get('/user/login',(req,res)=>{
 })
 app.post('/user/login',passport.authenticate('local',{session:true , failureFlash:true , failureRedirect:'/user/login'}),(req,res)=>{
     const redirectUrl = req.session.returnTo || '/home';
-    req.flash('success','Welcome back to BlogIt');
+    req.flash('success', 'Welcome back to BlogIt');
+    console.log(req.cookies)
     res.redirect(redirectUrl);
 })
+
 //User logout 
 app.get('/user/logout',(req,res)=>{
     req.logout();
@@ -218,6 +233,7 @@ app.post('/:blogId/:authorId/unfollow',isLoggedIn,async (req,res)=>{
 })
 
 
-app.listen(3000,()=>{
-    console.log('listening to port ',3000);
+const port = process.env.PORT || 3002 ;
+app.listen(port,()=>{
+    console.log('listening to port ',port);
 })

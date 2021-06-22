@@ -7,6 +7,10 @@ const blogSchema = new Schema({
         type:String,
         required:true
     },
+    coverImage: {
+        url: String,
+        filename: String
+    },
     description:{
         type:String,
         required:true
