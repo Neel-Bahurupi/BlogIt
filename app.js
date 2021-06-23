@@ -10,42 +10,42 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const passport = require('passport');
 const multer = require('multer')
-const {storage} = require('./cloudinary/index')
+const { storage } = require('./cloudinary/index')
 const upload = multer({ storage })
 const localStrategy = require('passport-local').Strategy;
 const methodOverride = require('method-override')
-const {isLoggedIn,isAuthor} = require('./middleware')
+const { isLoggedIn, isAuthor } = require('./middleware')
 const User = require('./models/user')
 const Blog = require('./models/blog');
 const Tag = require('./models/tags');
-const dbUrl = process.env.DB_URL || "mongodb://localhost:27017/blog-app"; ;
+const dbUrl = process.env.DB_URL || "mongodb://localhost:27017/blog-app";;
 const SECRET = process.env.SECRET || "thisismysecretpassword"
 const MongoDBStore = require('connect-mongo');
 
-mongoose.connect(dbUrl, {useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex:true });
+mongoose.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true });
 const db = mongoose.connection;
-db.on("error",console.error.bind(console,"console error:"));
-db.once("open",()=>{
+db.on("error", console.error.bind(console, "console error:"));
+db.once("open", () => {
     console.log("Database connected");
 })
 
-app.engine('ejs',ejsMate);
-app.set('view engine','ejs');
-app.set('views',path.join(__dirname,'views'));
+app.engine('ejs', ejsMate);
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(bodyParser.urlencoded({extended:true}));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser())
 app.use(methodOverride('_method'));
 
 app.use(session({
-    store:MongoDBStore.create({ mongoUrl: dbUrl }),
-    name:'sessionAuth',
-    secret:SECRET,
-    resave:'false', 
-    touchAfter:24*60*60,
-    saveUninitialized:true,
-    cookie:{
-        httpOnly:true
+    store: MongoDBStore.create({ mongoUrl: dbUrl }),
+    name: 'sessionAuth',
+    secret: SECRET,
+    resave: 'false',
+    touchAfter: 24 * 60 * 60,
+    saveUninitialized: true,
+    cookie: {
+        httpOnly: true
     }
 }))
 app.use(flash());
@@ -68,172 +68,171 @@ app.use((req, res, next) => {
 
 
 app.get('/', (req, res) => {
-    
+
 
     res.redirect('/home');
 })
 
 //home page
-app.get('/home', async (req, res)=>{
+app.get('/home', async (req, res) => {
     const isLoggedIn = (req.user === undefined ? false : true);
-    
-    if(isLoggedIn){
-        const {following} = await User.findById(req.user._id);
-        const blogs = await Blog.find({author : {$in : following} }).populate('author')
+
+    if (isLoggedIn) {
+        const { following } = await User.findById(req.user._id);
+        const blogs = await Blog.find({ author: { $in: following } }).populate('author')
         const tags = await Tag.find({});
-        res.render('blog/home',{blogs,tags,global:false,tag:false})
-    }else{
+        res.render('blog/home', { blogs, tags, global: false, tag: false })
+    } else {
         res.redirect('/global');
-    } 
+    }
 })
-app.get('/global',async(req, res)=>{
+app.get('/global', async (req, res) => {
     const blogs = await Blog.find({}).populate('author');
     const tags = await Tag.find({});
-    res.render('blog/home',{blogs , tags,global:true,tag:false})
+    res.render('blog/home', { blogs, tags, global: true, tag: false })
 })
 
 // new blog creation
-app.get('/blog/new',isLoggedIn,(req, res)=>{
+app.get('/blog/new', isLoggedIn, (req, res) => {
     res.render('blog/new');
 })
-app.post('/blog/new',isLoggedIn, upload.single('image'),async (req, res)=>{
-    const {title,description,tags,body} = req.body;
+app.post('/blog/new', isLoggedIn, upload.single('image'), async (req, res) => {
+    const { title, description, tags, body } = req.body;
     const tagsArray = tags.split(',').map(tag => tag.trim());
     const newBlog = new Blog({
         title,
         coverImage: {
-            url:req.file.path || "",
-            filename:req.file.filename
+            url: req.file.path || "",
+            filename: req.file.filename
         },
         description,
         body,
-        tagList : [...tagsArray],
+        tagList: [...tagsArray],
         author: req.user._id
     });
     await newBlog.save();
-    tagsArray.forEach(async(tag) => {
+    tagsArray.forEach(async (tag) => {
         const newTag = new Tag({
             tag
         })
         await newTag.save();
     })
-    req.flash('success','New blog post added');
+    req.flash('success', 'New blog post added');
     res.redirect('/home')
     res.send(req.file);
 })
 
 // delete blog
-app.delete('/blog/:blogId/delete',isLoggedIn,isAuthor,async (req, res)=>{
-    const {blogId} = req.params;
-    await Blog.findByIdAndRemove(blogId,{useFindAndModify:false});
+app.delete('/blog/:blogId/delete', isLoggedIn, isAuthor, async (req, res) => {
+    const { blogId } = req.params;
+    await Blog.findByIdAndRemove(blogId, { useFindAndModify: false });
     res.redirect('/home');
 })
 
 //edit blog
-app.get('/blog/:blogId/edit',isLoggedIn,isAuthor,async (req, res)=>{
+app.get('/blog/:blogId/edit', isLoggedIn, isAuthor, async (req, res) => {
     const blog = await Blog.findById(req.params.blogId);
-    res.render('blog/edit',{blog});
+    res.render('blog/edit', { blog });
 })
-app.put('/blog/:blogId/edit',isLoggedIn,isAuthor,async (req, res)=>{
-    const {blogId} = req.params;
-    const blog = await Blog.findByIdAndUpdate(blogId,req.body,{useFindAndModify:false});
+app.put('/blog/:blogId/edit', isLoggedIn, isAuthor, async (req, res) => {
+    const { blogId } = req.params;
+    const blog = await Blog.findByIdAndUpdate(blogId, req.body, { useFindAndModify: false });
     res.redirect(`/blogs/${blog._id}`);
 })
 
 //show page
-app.get('/blog/:blogId',async (req, res)=>{
-    const {blogId} = req.params;
+app.get('/blog/:blogId', async (req, res) => {
+    const { blogId } = req.params;
     const blog = await Blog.findById(blogId).populate('author').lean();
-    
-    const currentUserId =req.user &&  req.user._id;
-    if(currentUserId===undefined){
-        return res.render('blog/show',{blog,loggedIn:false});
+
+    const currentUserId = req.user && req.user._id;
+    if (currentUserId === undefined) {
+        return res.render('blog/show', { blog, loggedIn: false });
     }
-    
+
 
     let following = false;
-    for(let i=0;i<blog.author.followers.length;i++){
-        if(blog.author.followers[i].equals(currentUserId)){
+    for (let i = 0; i < blog.author.followers.length; i++) {
+        if (blog.author.followers[i].equals(currentUserId)) {
             following = true;
             break;
         }
     }
     const authorEqualCurrentUser = (blog.author._id.equals(req.user._id));
-    res.render('blog/show',{blog,following,loggedIn:true,authorEqualCurrentUser});
+    res.render('blog/show', { blog, following, loggedIn: true, authorEqualCurrentUser });
 })
 //tag
-app.get('/tag/:tagname',async(req,res)=>{
-    const {tagname} = req.params;
-    const blogs = await Blog.find({tagList:{$eq : tagname}}).populate('author')
+app.get('/tag/:tagname', async (req, res) => {
+    const { tagname } = req.params;
+    const blogs = await Blog.find({ tagList: { $eq: tagname } }).populate('author')
     const tags = await Tag.find({});
-    res.render('blog/home',{blogs,tag:tagname,tags})
+    res.render('blog/home', { blogs, tag: tagname, tags })
     // res.send(blogs);
 })
 
 
 //User registeration
-app.get('/user/register',(req,res)=>{
+app.get('/user/register', (req, res) => {
     res.render('user/register')
 })
 
-app.post('/user/register',async(req,res)=>{
-    const {username,email,password} = req.body;
-    try{
+app.post('/user/register', async (req, res) => {
+    const { username, email, password } = req.body;
+    try {
         const newUser = new User({
             email,
             username
         })
-        const registeredUser = await User.register(newUser,password);
-        req.login(registeredUser,(err)=>{
-            if(err) return next(err);
-            req.flash('success',"Welcome to BlogIt");
+        const registeredUser = await User.register(newUser, password);
+        req.login(registeredUser, (err) => {
+            if (err) return next(err);
+            req.flash('success', "Welcome to BlogIt");
             res.redirect('/home')
         })
 
-    }catch(err){
-        req.flash('error',err.message);
+    } catch (err) {
+        req.flash('error', err.message);
         res.redirect('/user/register');
     }
 })
 
 //User login
-app.get('/user/login',(req,res)=>{
+app.get('/user/login', (req, res) => {
     res.render('user/login');
 })
-app.post('/user/login',passport.authenticate('local',{session:true , failureFlash:true , failureRedirect:'/user/login'}),(req,res)=>{
+app.post('/user/login', passport.authenticate('local', { session: true, failureFlash: true, failureRedirect: '/user/login' }), (req, res) => {
     const redirectUrl = req.session.returnTo || '/home';
     req.flash('success', 'Welcome back to BlogIt');
-    console.log(req.cookies)
     res.redirect(redirectUrl);
 })
 
 //User logout 
-app.get('/user/logout',(req,res)=>{
+app.get('/user/logout', (req, res) => {
     req.logout();
-    req.flash('success','Logged out successfully')
+    req.flash('success', 'Logged out successfully')
     res.redirect('/home');
 })
 
 //follow a user
-app.post('/:blogId/:authorId/follow',isLoggedIn,async (req,res)=>{
-    const {blogId,authorId} = req.params;
+app.post('/:blogId/:authorId/follow', isLoggedIn, async (req, res) => {
+    const { blogId, authorId } = req.params;
 
-    await User.updateOne({_id:authorId},{$push:{followers:req.user._id}})
-    await User.updateOne({_id:req.user._id},{$push:{following:authorId}});
+    await User.updateOne({ _id: authorId }, { $push: { followers: req.user._id } })
+    await User.updateOne({ _id: req.user._id }, { $push: { following: authorId } });
     res.redirect(`/blog/${blogId}`);
-    
-})
-app.post('/:blogId/:authorId/unfollow',isLoggedIn,async (req,res)=>{
-    const {blogId,authorId} = req.params;
 
-    await User.updateOne({_id:authorId},{$pull:{followers:req.user._id}})
-    await User.updateOne({_id:req.user._id},{$pull:{following:authorId}});
+})
+app.post('/:blogId/:authorId/unfollow', isLoggedIn, async (req, res) => {
+    const { blogId, authorId } = req.params;
+
+    await User.updateOne({ _id: authorId }, { $pull: { followers: req.user._id } })
+    await User.updateOne({ _id: req.user._id }, { $pull: { following: authorId } });
     res.redirect(`/blog/${blogId}`);
-    
+
 })
 
 
-const port = process.env.PORT || 3002 ;
-app.listen(port,()=>{
-    console.log('listening to port ',port);
+const port = process.env.PORT || 3002;
+app.listen(port, () => {
+    console.log('listening to port ', port);
 })
