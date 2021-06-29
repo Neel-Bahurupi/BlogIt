@@ -10,6 +10,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const passport = require('passport');
 const multer = require('multer')
+const cloudinary = require('cloudinary').v2;
 const { storage } = require('./cloudinary/index')
 const upload = multer({ storage })
 const localStrategy = require('passport-local').Strategy;
@@ -96,15 +97,15 @@ app.get('/global', async (req, res) => {
 app.get('/blog/new', isLoggedIn, (req, res) => {
     res.render('blog/new');
 })
-app.post('/blog/new', isLoggedIn, upload.single('image'), async (req, res) => {
+app.post('/blog/new', isLoggedIn, upload.single('coverImage'), async (req, res) => {
     const { title, description, tags, body } = req.body;
     const tagsArray = tags.split(',').map(tag => tag.trim());
     const newBlog = new Blog({
         title,
-        coverImage: {
-            url: req.file.path || "",
+        coverImage: (req.file ?  {
+            url: req.file.path,
             filename: req.file.filename
-        },
+        } : null),
         description,
         body,
         tagList: [...tagsArray],
@@ -119,13 +120,16 @@ app.post('/blog/new', isLoggedIn, upload.single('image'), async (req, res) => {
     })
     req.flash('success', 'New blog post added');
     res.redirect('/home')
-    res.send(req.file);
 })
 
 // delete blog
 app.delete('/blog/:blogId/delete', isLoggedIn, isAuthor, async (req, res) => {
     const { blogId } = req.params;
-    await Blog.findByIdAndRemove(blogId, { useFindAndModify: false });
+    
+    const blog = await Blog.findByIdAndRemove(blogId, { useFindAndModify: false });
+    if (blog.coverImage) {
+        await cloudinary.uploader.destroy(blog.coverImage.filename);
+    }
     res.redirect('/home');
 })
 
@@ -134,10 +138,29 @@ app.get('/blog/:blogId/edit', isLoggedIn, isAuthor, async (req, res) => {
     const blog = await Blog.findById(req.params.blogId);
     res.render('blog/edit', { blog });
 })
-app.put('/blog/:blogId/edit', isLoggedIn, isAuthor, async (req, res) => {
+app.put('/blog/:blogId/edit',upload.single('coverImage'), isLoggedIn, isAuthor, async (req, res) => {
+    const { title, description, tags, body} = req.body;
+    const tagsArray = tags.split(',').map(tag => tag.trim());
     const { blogId } = req.params;
-    const blog = await Blog.findByIdAndUpdate(blogId, req.body, { useFindAndModify: false });
-    res.redirect(`/blogs/${blog._id}`);
+    console.log(req.file);
+    const updatedBlog = {
+        title,
+        coverImage: ( req.file ?  {
+            url: req.file.path,
+            filename: req.file.filename
+        } : null),
+        description,
+        body,
+        tagList: [...tagsArray],
+    };
+
+    const blog = await Blog.findByIdAndUpdate(blogId, updatedBlog, { useFindAndModify: false });
+    console.log(blog.coverImage);
+    if (blog.coverImage) {
+        try { await cloudinary.uploader.destroy(blog.coverImage.filename); }
+        catch(err) { console.log(err)}
+    }
+    res.redirect(`/blog/${blog._id}`);
 })
 
 //show page

@@ -32,7 +32,7 @@
 
     <div class="col-8">
       <div class="card show-page-card">
-        <img src="<%= blog.coverImage.url %> " alt="" />
+        <img src="<%= (blog.coverImage ? blog.coverImage.url : "") %>" alt="" />
         <div class="card-body">
           <h4 class="card-title show-page-title"><%= blog.title %></h4>
           <p class="card-text text-muted show-page-description">

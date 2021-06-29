@@ -8,6 +8,7 @@
       method="POST"
       novalidate
       class="needs-validation"
+      enctype="multipart/form-data"
     >
       <div class="mb-3">
         <label class="form-label" for="title">Title</label>
@@ -18,6 +19,15 @@
           name="title"
           value="<%= blog.title %>"
           required
+        />
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="coverImage">Cover Image</label>
+        <input
+          class="form-control"
+          type="file"
+          id="coverImage"
+          name="coverImage"
         />
       </div>
       <div class="mb-3">
@@ -53,7 +63,7 @@
           value="<%= blog.body %>"
           required
         >
-<%= blog.description %> </textarea
+        <%= blog.body %> </textarea
         >
       </div>
       <div class="mb-3">
