@@ -128,7 +128,11 @@ app.delete('/blog/:blogId/delete', isLoggedIn, isAuthor, async (req, res) => {
     
     const blog = await Blog.findByIdAndRemove(blogId, { useFindAndModify: false });
     if (blog.coverImage) {
-        await cloudinary.uploader.destroy(blog.coverImage.filename);
+        try{
+            await cloudinary.uploader.destroy(blog.coverImage.filename);
+        }catch(err){
+            console.log(err);
+        }
     }
     res.redirect('/home');
 })
